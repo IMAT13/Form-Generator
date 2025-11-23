@@ -1,5 +1,5 @@
 <template>
-  <formComponent />
+  <FormComponent />
 </template>
 
 <script setup>
@@ -11,6 +11,10 @@
     model: { type: Object, required: true },
     library: { type: Object, required: true },
     transition: { type: Boolean, default: true },
+    scopeId: {
+      type: String,
+      required: false,
+    },
   });
 
   const shouldRender = (input) => {
@@ -36,45 +40,78 @@
   };
 
   const resolveComponent = (component) => props.library[component] || component;
-  const resolveChildren = (input) => (input.children && input.children.length ? [...input.children] : []);
 
+  const isPlainElement = (child) =>
+    child.type === "plain" || !(child.type === "validated" || child.validation);
+
+  const resolveChild = (child, index) => {
+    if (typeof child === "string" || typeof child === "function") return child;
+    return isPlainElement(child) ? renderPlainField(child, index) : renderValidatedField(child, index);
+  };
+  const resolveChildren = (input) => {
+    if (!input?.children?.length) return [];
+    return input.children.map((child, index) => resolveChild(child, index));
+  };
+
+  const resolveSlots = (input) => ({
+    default: () => resolveChildren(input),
+    ...Object.entries(input.slots ?? {}).reduce((acc, [name, slot], index) => {
+      if (typeof slot === "object")
+        acc[name] = () =>
+          isPlainElement(slot) ? renderPlainField(slot, index) : renderValidatedField(slot, index);
+      else if (typeof slot === "function")
+        acc[name] = (payload) => {
+          const input = slot(payload);
+          return () =>
+            isPlainElement(input) ? renderPlainField(input, index) : renderValidatedField(input, index);
+        };
+      return acc;
+    }, {}),
+  });
   const renderValidatedField = (input, index) =>
-    h(ValidatedFieldRenderer, {
-      key: index,
-      name: input.props.name,
-      label: input.props.label,
-      validation: input.validation,
-      modelValue: input.models.modelValue,
-      "onUpdate:modelValue": (newValue) => (input.models.modelValue = newValue),
-      input: {
-        component: resolveComponent(input.as),
-        props: {
-          ...normalizedEvents(input),
-          ...normalizedProps(input),
-        },
-        children: resolveChildren(input),
-      },
-    });
+    shouldRender(input)
+      ? h(ValidatedFieldRenderer, {
+          key: index,
+          [props.scopeId]: "",
+          name: input.props?.name,
+          label: input.props?.label,
+          validation: input.validation,
+          modelValue: input.models.modelValue,
+          initialValue: input.props?.initialValue,
+          "onUpdate:modelValue": (newValue) => (input.models.modelValue = newValue),
+          input: {
+            component: resolveComponent(input.as),
+            props: {
+              ...normalizedEvents(input),
+              ...normalizedProps(input),
+            },
+            slots: resolveSlots(input),
+          },
+        })
+      : null;
 
-  const renderPlainField = (input, index) =>
-    h(
-      resolveComponent(input.as),
-      {
-        key: index,
-        ...normalizedEvents(input),
-        ...normalizedProps(input),
-      },
-      () => resolveChildren(input),
-    );
+  const renderPlainField = (input, index) => {
+    const component = resolveComponent(input.as);
+    return shouldRender(input)
+      ? h(
+          component,
+          {
+            key: index,
+            [props.scopeId]: "",
+            ...normalizedEvents(input),
+            ...normalizedProps(input),
+          },
+          resolveSlots(input),
+        )
+      : null;
+  };
 
   const getFieldsArray = () =>
     Object.values(props.model).map((input, index) => {
-      if (!shouldRender(input)) return null;
-
-      return input.type === "plain" ? renderPlainField(input, index) : renderValidatedField(input, index);
+      return isPlainElement(input) ? renderPlainField(input, index) : renderValidatedField(input, index);
     });
 
-  const formComponent = h(
+  const FormComponent = h(
     "form",
     props.transition
       ? h(
@@ -88,7 +125,7 @@
   );
 </script>
 
-<style lang="scss" scoped>
+<style lang="scss">
   .formGroup-move,
   .formGroup-enter-active {
     transition: all 0.5s ease;

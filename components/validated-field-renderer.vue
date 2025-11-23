@@ -1,11 +1,9 @@
 <template>
-  <fieldComponent v-bind="props.input.props" v-model="fieldValue" :errorMessage="errorMessage">
-    {{ props.input.children }}
-  </fieldComponent>
+  <FieldComponent />
 </template>
 
 <script setup>
-  import { watch, onMounted, computed } from "vue";
+  import { computed, onMounted, watch } from "vue";
   import { useField } from "vee-validate";
 
   defineOptions({
@@ -18,7 +16,6 @@
     },
     label: {
       type: String,
-      required: true,
     },
     validation: {
       type: Object,
@@ -29,18 +26,32 @@
       type: Object,
       required: true,
     },
+    initialValue: {},
   });
   const modelValue = defineModel();
 
-  const fieldComponent = computed(() => props.input.component);
+  const FieldComponent = () =>
+    h(
+      props.input.component,
+      {
+        ...props.input.props,
+        modelValue: fieldValue.value,
+        "onUpdate:modelValue": (value) => (fieldValue.value = value),
+        "error-message": errorMessage.value,
+        ...(validationProps.value.mode === "blur" && { onBlur: handleBlur }),
+      },
+      props.input.slots,
+    );
 
   //TODO use toRef
-  const validationProps = computed(() => props.validation);
+  const validationProps = computed(() => props.validation || {});
+
   const fieldOptions = {
-    label: props.label,
-    initialValue: modelValue.value,
-    standalone: validationProps.value.standalone,
+    label: props.label ?? "",
+    initialValue: props.initialValue ?? modelValue.value,
+    standalone: validationProps.value?.standalone || false,
     syncVModel: true,
+    ...(validationProps.value.mode === "blur" && { validateOnValueUpdate: false }),
     // validateOnMount: validationProps.value.mode === "aggressive",
     //TODO try to make it work without an extra watch (look at the core functionality of the useField in relation to rule changes,
     //there were an interaction mode previously and they replaced it with silent mode search about it)
@@ -48,20 +59,26 @@
 
   const fieldValue = computed({
     get() {
-      return modelValue.value;
+      return validationValue.value;
     },
     set(value) {
       validationValue.value = value;
       modelValue.value = value;
     },
   });
+  const handleBlur = () => validate();
 
   const {
     errorMessage,
-    //   meta,
+    meta,
     validate,
     value: validationValue,
   } = useField(props.name, validationProps.value.rules, fieldOptions);
+
+  watch(
+    () => meta.valid,
+    (newValue, oldValue) => newValue && !oldValue && validate(),
+  );
 
   //TODO maybe using watchEffect is a better approach
   const watchRules = async (rules) => {

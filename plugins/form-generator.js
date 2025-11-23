@@ -1,12 +1,13 @@
-import FormGenerator from "../components/form-generator.vue";
-import useReactiveComputed from "../composables/useReactiveComputed";
-import { h, reactive, onUnmounted } from "vue";
 import { useForm } from "vee-validate";
+import { getCurrentInstance, h } from "vue";
+import FormGenerator from "../components/form-generator.vue";
 
 export default {
   install(app, library) {
     const DEFAULT_FORM_NAME = "form";
-    const contexts = reactive({});
+
+    const getParentScopeId = () => getCurrentInstance()?.vnode.scopeId;
+
     app.component("FormGenerator", {
       props: {
         name: {
@@ -14,26 +15,21 @@ export default {
           required: false,
           default: DEFAULT_FORM_NAME,
         },
+        parentScopeId: {
+          type: String,
+          required: false,
+        },
       },
       setup(props) {
-        contexts[props.name] = useForm();
-
-        const clearContext = () => {
-          contexts[props.name] = null;
-        };
-
-        onUnmounted(() => clearContext);
-
         return () =>
           h(FormGenerator, {
             ...props,
             library,
+            scopeId: getParentScopeId(),
           });
       },
     });
 
-    app.provide("useFormContext", (name = DEFAULT_FORM_NAME) => {
-      return useReactiveComputed(() => contexts[name]);
-    });
+    window.useFormGenerator = useForm;
   },
 };

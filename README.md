@@ -165,7 +165,7 @@ as: "div";
 ```
 
 - Renders without validation wrapper
-- Supports direct children's injection
+- Supports direct children injection
 - Full event/prop passthrough
 
 ### 3. Children Rendering
@@ -234,4 +234,4 @@ We welcome contributions from the community! If you encounter any issues or have
 
 ### License
 
-Feel free to reach out to me if you have any questions or need any more help.
+Feel free to reach out if you have any questions or need further assistance.
